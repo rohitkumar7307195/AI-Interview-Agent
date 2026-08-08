@@ -263,3 +263,107 @@ Rules:
             status_code=500,
             detail=f"Gemini error: {str(error)}",
         )
+    # =========================================================
+# EVALUATE INTERVIEW ANSWER
+# =========================================================
+
+class EvaluationRequest(BaseModel):
+    question: str
+    answer: str
+    topic: str
+    difficulty: str
+    project: str = ""
+
+
+@app.post("/api/evaluate")
+def evaluate_answer(request: EvaluationRequest):
+
+    prompt = f"""
+You are an expert technical interviewer.
+
+Evaluate the candidate's answer.
+
+Interview Question:
+{request.question}
+
+Candidate Answer:
+{request.answer}
+
+Topic:
+{request.topic}
+
+Difficulty:
+{request.difficulty}
+
+Candidate Project:
+{request.project if request.project else "No project information provided."}
+
+Evaluate:
+
+1. Technical correctness
+2. Clarity
+3. Completeness
+4. Relevance
+
+Return ONLY valid JSON:
+
+{{
+    "score": 0,
+    "feedback": "Detailed feedback",
+    "strengths": [
+        "Strength 1",
+        "Strength 2"
+    ],
+    "improvements": [
+        "Improvement 1",
+        "Improvement 2"
+    ]
+}}
+
+Score must be between 0 and 10.
+Return ONLY JSON.
+"""
+
+    try:
+        response = client.models.generate_content(
+            model="gemini-3.6-flash",
+            contents=prompt,
+        )
+
+        result = response.text.strip()
+
+        # Remove markdown code fences
+        if result.startswith("```json"):
+            result = result[7:]
+
+        if result.startswith("```"):
+            result = result[3:]
+
+        if result.endswith("```"):
+            result = result[:-3]
+
+        result = result.strip()
+
+        import json
+
+        evaluation = json.loads(result)
+
+        return {
+            "success": True,
+            "score": evaluation.get("score", 0),
+            "feedback": evaluation.get("feedback", ""),
+            "strengths": evaluation.get("strengths", []),
+            "improvements": evaluation.get("improvements", []),
+        }
+
+    except Exception as error:
+
+        print(
+            "Gemini evaluation error:",
+            repr(error)
+        )
+
+        raise HTTPException(
+            status_code=500,
+            detail="Failed to evaluate answer"
+        )
