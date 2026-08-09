@@ -1,4 +1,5 @@
 import os
+import json
 
 from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException
@@ -45,7 +46,9 @@ app = FastAPI(
 
 app.add_middleware(
     CORSMiddleware,
+
     allow_origins=[
+        # Local frontend
         "http://localhost:5183",
         "http://127.0.0.1:5183",
 
@@ -60,11 +63,19 @@ app.add_middleware(
 
         "http://localhost:5174",
         "http://127.0.0.1:5174",
+
+        # Vercel frontend
+        # Add your real Vercel URL here later.
+        # Example:
+        # "https://ai-interview-agent.vercel.app",
     ],
+
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
 # =========================================================
 # REQUEST MODELS
 # =========================================================
@@ -80,6 +91,14 @@ class AnswerRequest(BaseModel):
     answer: str
     topic: str
     difficulty: str
+
+
+class EvaluationRequest(BaseModel):
+    question: str
+    answer: str
+    topic: str
+    difficulty: str
+    project: str = ""
 
 
 # =========================================================
@@ -128,7 +147,11 @@ Difficulty:
 {request.difficulty}
 
 Candidate Project:
-{request.project if request.project else "No project information provided."}
+{
+    request.project
+    if request.project
+    else "No project information provided."
+}
 
 Requirements:
 
@@ -176,7 +199,7 @@ Requirements:
 
 
 # =========================================================
-# EVALUATE CANDIDATE ANSWER
+# EVALUATE CANDIDATE ANSWER - OLD ENDPOINT
 # =========================================================
 
 @app.post("/api/evaluate-answer")
@@ -217,10 +240,12 @@ Feedback:
 Write 2-4 sentences of constructive feedback.
 
 Strengths:
+
 - Strength 1
 - Strength 2
 
 Improvements:
+
 - Improvement 1
 - Improvement 2
 
@@ -263,20 +288,16 @@ Rules:
             status_code=500,
             detail=f"Gemini error: {str(error)}",
         )
-    # =========================================================
+
+
+# =========================================================
 # EVALUATE INTERVIEW ANSWER
 # =========================================================
 
-class EvaluationRequest(BaseModel):
-    question: str
-    answer: str
-    topic: str
-    difficulty: str
-    project: str = ""
-
-
 @app.post("/api/evaluate")
-def evaluate_answer(request: EvaluationRequest):
+def evaluate_interview_answer(
+    request: EvaluationRequest
+):
 
     prompt = f"""
 You are an expert technical interviewer.
@@ -296,7 +317,11 @@ Difficulty:
 {request.difficulty}
 
 Candidate Project:
-{request.project if request.project else "No project information provided."}
+{
+    request.project
+    if request.project
+    else "No project information provided."
+}
 
 Evaluate:
 
@@ -321,30 +346,30 @@ Return ONLY valid JSON:
 }}
 
 Score must be between 0 and 10.
+
 Return ONLY JSON.
 """
 
     try:
+
         response = client.models.generate_content(
             model="gemini-3.6-flash",
             contents=prompt,
         )
 
-        result = response.text.strip()
+        result = (response.text or "").strip()
 
-        # Remove markdown code fences
+        # Remove markdown code fences if Gemini adds them
         if result.startswith("```json"):
             result = result[7:]
 
-        if result.startswith("```"):
+        elif result.startswith("```"):
             result = result[3:]
 
         if result.endswith("```"):
             result = result[:-3]
 
         result = result.strip()
-
-        import json
 
         evaluation = json.loads(result)
 
