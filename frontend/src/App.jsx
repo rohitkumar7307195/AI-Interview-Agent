@@ -1,431 +1,235 @@
 import { useState } from "react";
 import "./App.css";
 
-
-const API_URL = "http://127.0.0.1:8001";
-
+const API_BASE_URL = "https://ai-interview-agent-5mxs.onrender.com";
 
 function App() {
+  const [topic, setTopic] = useState("JavaScript");
+  const [difficulty, setDifficulty] = useState("Beginner");
+  const [project, setProject] = useState("");
 
-  // =====================================================
-  // STATE
-  // =====================================================
+  const [question, setQuestion] = useState("");
+  const [answer, setAnswer] = useState("");
+  const [evaluation, setEvaluation] = useState(null);
 
-  const [topic, setTopic] = useState("");
-
-  const [difficulty, setDifficulty] =
-    useState("Beginner");
-
-  const [project, setProject] =
-    useState("");
-
-  const [question, setQuestion] =
-    useState("");
-
-  const [answer, setAnswer] =
-    useState("");
-
-  const [evaluation, setEvaluation] =
-    useState("");
-
-  const [loading, setLoading] =
-    useState(false);
-
-  const [evaluating, setEvaluating] =
-    useState(false);
-
-  const [error, setError] =
-    useState("");
-
-
-  // =====================================================
-  // GENERATE QUESTION
-  // =====================================================
+  const [loading, setLoading] = useState(false);
+  const [evaluating, setEvaluating] = useState(false);
+  const [error, setError] = useState("");
 
   const generateQuestion = async () => {
-
+    setLoading(true);
     setError("");
     setQuestion("");
     setAnswer("");
-    setEvaluation("");
-
-    if (!topic.trim()) {
-
-      setError(
-        "Please enter an interview topic."
-      );
-
-      return;
-    }
-
-    setLoading(true);
+    setEvaluation(null);
 
     try {
-
-      console.log(
-        "Calling interview API..."
-      );
+      console.log("Calling Render backend...");
 
       const response = await fetch(
-        `${API_URL}/api/interview`,
+        `${API_BASE_URL}/api/interview`,
         {
           method: "POST",
-
           headers: {
-            "Content-Type":
-              "application/json",
-
-            "Accept":
-              "application/json",
+            Accept: "application/json",
+            "Content-Type": "application/json",
           },
-
           body: JSON.stringify({
-            topic: topic.trim(),
-
-            difficulty:
-              difficulty,
-
-            project:
-              project.trim(),
+            topic,
+            difficulty,
+            project,
           }),
         }
       );
 
-
-      const data =
-        await response.json();
-
-
-      console.log(
-        "Interview API response:",
-        data
-      );
-
-
       if (!response.ok) {
-
-        throw new Error(
-          data.detail ||
-          "Failed to generate interview question"
-        );
+        const errorText = await response.text();
+        console.error("Interview API Error:", errorText);
+        throw new Error(`Server error: ${response.status}`);
       }
 
+      const data = await response.json();
 
-      setQuestion(
-        data.question
-      );
+      console.log("Question received:", data);
 
+      if (!data.question) {
+        throw new Error("Backend did not return a question.");
+      }
 
-    } catch (error) {
-
-      console.error(
-        "Question API Error:",
-        error
-      );
-
+      setQuestion(data.question);
+    } catch (err) {
+      console.error("GENERATE QUESTION ERROR:", err);
 
       setError(
-        error.message ||
-        "Failed to connect to backend."
+        err.message ||
+          "Failed to generate interview question."
       );
-
-
     } finally {
-
       setLoading(false);
-
     }
   };
 
-
-  // =====================================================
-  // SUBMIT ANSWER
-  // =====================================================
-
   const submitAnswer = async () => {
-
-    setError("");
-    setEvaluation("");
-
-
     if (!question) {
-
       setError(
-        "Please generate a question first."
+        "Please generate an interview question first."
       );
-
       return;
     }
 
-
     if (!answer.trim()) {
-
       setError(
         "Please write your answer before submitting."
       );
-
       return;
     }
 
-
     setEvaluating(true);
-
+    setError("");
+    setEvaluation(null);
 
     try {
-
-      console.log(
-        "Submitting candidate answer..."
-      );
-
+      console.log("Sending answer for AI evaluation...");
 
       const response = await fetch(
-        `${API_URL}/api/evaluate-answer`,
+        `${API_BASE_URL}/api/evaluate`,
         {
           method: "POST",
-
           headers: {
-            "Content-Type":
-              "application/json",
-
-            "Accept":
-              "application/json",
+            Accept: "application/json",
+            "Content-Type": "application/json",
           },
-
           body: JSON.stringify({
-            question:
-              question,
-
-            answer:
-              answer.trim(),
-
-            topic:
-              topic,
-
-            difficulty:
-              difficulty,
+            question,
+            answer,
+            topic,
+            difficulty,
+            project,
           }),
         }
       );
 
-
-      const data =
-        await response.json();
-
-
-      console.log(
-        "Evaluation API response:",
-        data
-      );
-
-
       if (!response.ok) {
+        const errorText = await response.text();
+        console.error("Evaluation API Error:", errorText);
 
         throw new Error(
-          data.detail ||
-          "Failed to evaluate answer"
+          `Evaluation failed: ${response.status}`
         );
       }
 
+      const data = await response.json();
 
-      setEvaluation(
-        data.evaluation
-      );
+      console.log("AI evaluation received:", data);
 
-
-    } catch (error) {
-
-      console.error(
-        "Evaluation API Error:",
-        error
-      );
-
+      setEvaluation(data);
+    } catch (err) {
+      console.error("SUBMIT ANSWER ERROR:", err);
 
       setError(
-        error.message ||
-        "Failed to evaluate your answer."
+        err.message ||
+          "Failed to evaluate your answer."
       );
-
-
     } finally {
-
       setEvaluating(false);
-
     }
   };
 
-
-  // =====================================================
-  // UI
-  // =====================================================
+  const startNewQuestion = () => {
+    setQuestion("");
+    setAnswer("");
+    setEvaluation(null);
+    setError("");
+  };
 
   return (
-
     <div className="app">
 
+      <header className="hero">
 
-      {/* =================================================
-          NAVBAR
-      ================================================= */}
+        <div className="badge">
+          AI READY
+        </div>
 
-      <header className="navbar">
-
-        <div className="logo">
+        <h1>
           AI Interview Agent
-        </div>
+        </h1>
 
+        <p className="hero-tagline">
+          AI-POWERED INTERVIEW PREPARATION
+        </p>
 
-        <div className="status">
+        <h2>
+          Master Your Technical Interview
+        </h2>
 
-          <span className="status-dot"></span>
-
-          AI Ready
-
-        </div>
+        <p className="hero-description">
+          Practice personalized technical interview
+          questions and receive AI-powered feedback.
+        </p>
 
       </header>
 
-
-
-      {/* =================================================
-          MAIN
-      ================================================= */}
-
       <main className="container">
 
+        <section className="card">
 
-        {/* =================================================
-            HERO
-        ================================================= */}
+          <h2>
+            Start Interview Practice
+          </h2>
 
-        <section className="hero">
-
-          <div className="badge">
-            AI-POWERED INTERVIEW PREPARATION
-          </div>
-
-
-          <h1>
-
-            Master Your{" "}
-
-            <span>
-              Technical Interview
-            </span>
-
-          </h1>
-
-
-          <p className="subtitle">
-
-            Practice personalized technical
-            interview questions and receive
-            AI-powered feedback.
-
+          <p>
+            Configure your interview and generate an
+            AI-powered technical question.
           </p>
 
-        </section>
+          <div className="form-group">
 
+            <label>
+              Interview Topic
+            </label>
 
-
-        {/* =================================================
-            INTERVIEW CARD
-        ================================================= */}
-
-        <section className="interview-card">
-
-
-          <div className="card-header">
-
-            <h2>
-              Start Interview Practice
-            </h2>
-
-
-            <p>
-              Configure your interview and
-              generate an AI-powered question.
-            </p>
+            <input
+              type="text"
+              value={topic}
+              onChange={(event) =>
+                setTopic(event.target.value)
+              }
+              placeholder="Example: JavaScript"
+            />
 
           </div>
 
+          <div className="form-group">
 
+            <label>
+              Difficulty
+            </label>
 
-          {/* =================================================
-              TOPIC + DIFFICULTY
-          ================================================= */}
+            <select
+              value={difficulty}
+              onChange={(event) =>
+                setDifficulty(event.target.value)
+              }
+            >
+              <option value="Beginner">
+                Beginner
+              </option>
 
-          <div className="form-grid">
+              <option value="Intermediate">
+                Intermediate
+              </option>
 
+              <option value="Advanced">
+                Advanced
+              </option>
 
-            {/* TOPIC */}
-
-            <div className="form-group">
-
-              <label>
-                Interview Topic
-              </label>
-
-
-              <input
-                type="text"
-                placeholder="JavaScript, React, Python, DSA..."
-                value={topic}
-                onChange={(e) =>
-                  setTopic(
-                    e.target.value
-                  )
-                }
-              />
-
-            </div>
-
-
-
-            {/* DIFFICULTY */}
-
-            <div className="form-group">
-
-              <label>
-                Difficulty
-              </label>
-
-
-              <select
-                value={difficulty}
-                onChange={(e) =>
-                  setDifficulty(
-                    e.target.value
-                  )
-                }
-              >
-
-                <option value="Beginner">
-                  Beginner
-                </option>
-
-                <option value="Intermediate">
-                  Intermediate
-                </option>
-
-                <option value="Advanced">
-                  Advanced
-                </option>
-
-                <option value="Expert">
-                  Expert
-                </option>
-
-              </select>
-
-            </div>
+              <option value="Expert">
+                Expert
+              </option>
+            </select>
 
           </div>
-
-
-
-          {/* =================================================
-              PROJECT
-          ================================================= */}
 
           <div className="form-group">
 
@@ -433,194 +237,187 @@ function App() {
               Project Information
             </label>
 
-
             <textarea
-              rows="5"
-              placeholder="Describe your project and technologies used..."
               value={project}
-              onChange={(e) =>
-                setProject(
-                  e.target.value
-                )
+              onChange={(event) =>
+                setProject(event.target.value)
               }
+              placeholder="Example: AI Interview Agent built using React, FastAPI and Gemini"
+              rows="4"
             />
 
           </div>
 
-
-
-          {/* =================================================
-              GENERATE BUTTON
-          ================================================= */}
-
           <button
-            className="generate-btn"
-            onClick={
-              generateQuestion
-            }
+            className="primary-button"
+            onClick={generateQuestion}
             disabled={loading}
           >
-
             {loading
               ? "Generating Question..."
-              : "Generate Interview Question"
-            }
-
+              : "Generate Interview Question"}
           </button>
-
-
-
-          {/* =================================================
-              QUESTION
-          ================================================= */}
-
-          {question && (
-
-            <div className="question-card">
-
-
-              <div className="question-label">
-
-                AI INTERVIEW QUESTION
-
-              </div>
-
-
-              <h3>
-
-                {question}
-
-              </h3>
-
-
-              <div className="question-meta">
-
-                <span>
-                  {topic}
-                </span>
-
-
-                <span>
-                  {difficulty}
-                </span>
-
-              </div>
-
-            </div>
-
-          )}
-
-
-
-          {/* =================================================
-              ANSWER SECTION
-          ================================================= */}
-
-          {question && (
-
-            <div className="answer-section">
-
-
-              <h2>
-                Your Answer
-              </h2>
-
-
-              <p>
-                Explain your answer as you would
-                during a real technical interview.
-              </p>
-
-
-              <textarea
-                className="answer-box"
-                rows="8"
-                placeholder="Write your answer here..."
-                value={answer}
-                onChange={(e) =>
-                  setAnswer(
-                    e.target.value
-                  )
-                }
-              />
-
-
-              <button
-                className="submit-btn"
-                onClick={
-                  submitAnswer
-                }
-                disabled={
-                  evaluating
-                }
-              >
-
-                {evaluating
-                  ? "Evaluating Answer..."
-                  : "Submit Answer"
-                }
-
-              </button>
-
-            </div>
-
-          )}
-
-
-
-          {/* =================================================
-              ERROR
-          ================================================= */}
-
-          {error && (
-
-            <div className="error-box">
-
-              <strong>
-                Error:
-              </strong>{" "}
-
-              {error}
-
-            </div>
-
-          )}
-
-
-
-          {/* =================================================
-              AI EVALUATION
-          ================================================= */}
-
-          {evaluation && (
-
-            <div className="evaluation-card">
-
-
-              <div className="evaluation-label">
-
-                AI EVALUATION
-
-              </div>
-
-
-              <pre>
-                {evaluation}
-              </pre>
-
-
-            </div>
-
-          )}
 
         </section>
 
+        {error && (
+          <div className="error-box">
+            <strong>Error:</strong> {error}
+          </div>
+        )}
+
+        {question && (
+          <section className="card question-card">
+
+            <div className="section-label">
+              AI INTERVIEW QUESTION
+            </div>
+
+            <h2 className="question">
+              {question}
+            </h2>
+
+            <div className="question-meta">
+
+              <span>
+                {topic}
+              </span>
+
+              <span>
+                {difficulty}
+              </span>
+
+            </div>
+
+          </section>
+        )}
+
+        {question && (
+          <section className="card">
+
+            <h2>
+              Your Answer
+            </h2>
+
+            <p>
+              Explain your answer as you would during
+              a real technical interview.
+            </p>
+
+            <textarea
+              className="answer-box"
+              value={answer}
+              onChange={(event) =>
+                setAnswer(event.target.value)
+              }
+              placeholder="Write your technical answer here..."
+              rows="10"
+            />
+
+            <button
+              className="primary-button"
+              onClick={submitAnswer}
+              disabled={
+                evaluating || !answer.trim()
+              }
+            >
+              {evaluating
+                ? "AI Evaluating..."
+                : "Submit Answer"}
+            </button>
+
+          </section>
+        )}
+
+        {evaluation && (
+          <section className="card evaluation-card">
+
+            <div className="section-label">
+              AI EVALUATION
+            </div>
+
+            {evaluation.score !== undefined && (
+              <div className="score">
+                Score: {evaluation.score}/10
+              </div>
+            )}
+
+            {evaluation.feedback && (
+              <div className="evaluation-section">
+
+                <h3>
+                  Feedback
+                </h3>
+
+                <p>
+                  {evaluation.feedback}
+                </p>
+
+              </div>
+            )}
+
+            {Array.isArray(evaluation.strengths) &&
+              evaluation.strengths.length > 0 && (
+                <div className="evaluation-section">
+
+                  <h3>
+                    Strengths
+                  </h3>
+
+                  <ul>
+                    {evaluation.strengths.map(
+                      (strength, index) => (
+                        <li key={index}>
+                          {strength}
+                        </li>
+                      )
+                    )}
+                  </ul>
+
+                </div>
+              )}
+
+            {Array.isArray(evaluation.improvements) &&
+              evaluation.improvements.length > 0 && (
+                <div className="evaluation-section">
+
+                  <h3>
+                    Improvements
+                  </h3>
+
+                  <ul>
+                    {evaluation.improvements.map(
+                      (improvement, index) => (
+                        <li key={index}>
+                          {improvement}
+                        </li>
+                      )
+                    )}
+                  </ul>
+
+                </div>
+              )}
+
+            <button
+              className="secondary-button"
+              onClick={startNewQuestion}
+            >
+              Start New Question
+            </button>
+
+          </section>
+        )}
+
       </main>
 
-    </div>
+      <footer>
+        <p>
+          AI Interview Agent • React + FastAPI + Gemini
+        </p>
+      </footer>
 
+    </div>
   );
 }
-
 
 export default App;
