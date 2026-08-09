@@ -36,7 +36,7 @@ client = genai.Client(api_key=API_KEY)
 app = FastAPI(
     title="AI Interview Agent",
     description="AI-powered technical interview preparation platform",
-    version="1.0.0",
+    version="2.0.0",
 )
 
 
@@ -59,6 +59,7 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
 
 # =========================================================
 # REQUEST MODELS
@@ -86,6 +87,28 @@ class EvaluationRequest(BaseModel):
 
 
 # =========================================================
+# SESSION MODELS
+# =========================================================
+
+class SessionQuestionRequest(BaseModel):
+    topic: str
+    difficulty: str
+    project: str = ""
+    question_number: int = 1
+    total_questions: int = 5
+    previous_questions: list[str] = []
+
+
+class SessionEvaluationRequest(BaseModel):
+    question: str
+    answer: str
+    topic: str
+    difficulty: str
+    project: str = ""
+    question_number: int = 1
+
+
+# =========================================================
 # HOME
 # =========================================================
 
@@ -110,7 +133,7 @@ def health():
 
 
 # =========================================================
-# GENERATE INTERVIEW QUESTION
+# GENERATE SINGLE INTERVIEW QUESTION
 # =========================================================
 
 @app.post("/api/interview")
@@ -183,7 +206,7 @@ Requirements:
 
 
 # =========================================================
-# EVALUATE CANDIDATE ANSWER - OLD ENDPOINT
+# OLD EVALUATE ANSWER ENDPOINT
 # =========================================================
 
 @app.post("/api/evaluate-answer")
@@ -275,7 +298,7 @@ Rules:
 
 
 # =========================================================
-# EVALUATE INTERVIEW ANSWER
+# EVALUATE SINGLE INTERVIEW ANSWER
 # =========================================================
 
 @app.post("/api/evaluate")
@@ -343,7 +366,6 @@ Return ONLY JSON.
 
         result = (response.text or "").strip()
 
-        # Remove markdown code fences if Gemini adds them
         if result.startswith("```json"):
             result = result[7:]
 
@@ -375,4 +397,345 @@ Return ONLY JSON.
         raise HTTPException(
             status_code=500,
             detail="Failed to evaluate answer"
+        )
+
+
+# =========================================================
+# SESSION QUESTION
+# =========================================================
+
+@app.post("/api/session-question")
+def generate_session_question(
+    request: SessionQuestionRequest
+):
+
+    previous_questions_text = "\n".join(
+        [
+            f"{index + 1}. {question}"
+            for index, question
+            in enumerate(request.previous_questions)
+        ]
+    )
+
+    if not previous_questions_text:
+        previous_questions_text = "No previous questions."
+
+
+    prompt = f"""
+You are conducting a professional technical interview.
+
+This is question {request.question_number}
+out of {request.total_questions}.
+
+Topic:
+{request.topic}
+
+Difficulty:
+{request.difficulty}
+
+Candidate Project:
+{
+    request.project
+    if request.project
+    else "No project information provided."
+}
+
+Previous questions:
+{previous_questions_text}
+
+Generate ONE new technical interview question.
+
+Rules:
+
+1. Ask exactly ONE question.
+2. Do NOT repeat any previous question.
+3. Gradually increase conceptual depth.
+4. Keep the question appropriate for the selected difficulty.
+5. Personalize it using the candidate project when useful.
+6. Do not provide the answer.
+7. Do not provide hints.
+8. Return ONLY the question.
+"""
+
+    try:
+
+        response = client.models.generate_content(
+            model="gemini-3.6-flash",
+            contents=prompt,
+        )
+
+        question = (response.text or "").strip()
+
+        if not question:
+            raise Exception(
+                "Gemini returned an empty question."
+            )
+
+        return {
+            "success": True,
+            "question": question,
+            "question_number": request.question_number,
+            "total_questions": request.total_questions,
+        }
+
+    except Exception as error:
+
+        print(
+            "Session question generation error:",
+            repr(error)
+        )
+
+        raise HTTPException(
+            status_code=500,
+            detail=f"Gemini error: {str(error)}",
+        )
+
+
+# =========================================================
+# SESSION ANSWER EVALUATION
+# =========================================================
+
+@app.post("/api/session-evaluate")
+def evaluate_session_answer(
+    request: SessionEvaluationRequest
+):
+
+    prompt = f"""
+You are an expert technical interviewer.
+
+Evaluate this candidate's answer during a
+multi-question technical interview.
+
+Question number:
+{request.question_number}
+
+Interview Question:
+{request.question}
+
+Candidate Answer:
+{request.answer}
+
+Topic:
+{request.topic}
+
+Difficulty:
+{request.difficulty}
+
+Candidate Project:
+{
+    request.project
+    if request.project
+    else "No project information provided."
+}
+
+Evaluate:
+
+1. Technical correctness
+2. Understanding
+3. Completeness
+4. Clarity
+5. Practical application
+6. Interview communication quality
+
+Return ONLY valid JSON:
+
+{{
+    "score": 0,
+    "feedback": "2-4 sentences of constructive feedback",
+    "strengths": [
+        "Strength 1",
+        "Strength 2"
+    ],
+    "improvements": [
+        "Improvement 1",
+        "Improvement 2"
+    ]
+}}
+
+Rules:
+
+- Score must be between 0 and 10.
+- Be fair.
+- Do not provide a model answer.
+- Return ONLY JSON.
+"""
+
+    try:
+
+        response = client.models.generate_content(
+            model="gemini-3.6-flash",
+            contents=prompt,
+        )
+
+        result = (response.text or "").strip()
+
+        if result.startswith("```json"):
+            result = result[7:]
+
+        elif result.startswith("```"):
+            result = result[3:]
+
+        if result.endswith("```"):
+            result = result[:-3]
+
+        result = result.strip()
+
+        evaluation = json.loads(result)
+
+        return {
+            "success": True,
+            "score": evaluation.get("score", 0),
+            "feedback": evaluation.get("feedback", ""),
+            "strengths": evaluation.get("strengths", []),
+            "improvements": evaluation.get("improvements", []),
+        }
+
+    except Exception as error:
+
+        print(
+            "Session evaluation error:",
+            repr(error)
+        )
+
+        raise HTTPException(
+            status_code=500,
+            detail="Failed to evaluate session answer"
+        )
+
+
+# =========================================================
+# FINAL INTERVIEW REPORT
+# =========================================================
+
+class FinalReportRequest(BaseModel):
+    topic: str
+    difficulty: str
+    project: str = ""
+    evaluations: list[dict] = []
+
+
+@app.post("/api/session-report")
+def generate_session_report(
+    request: FinalReportRequest
+):
+
+    evaluations_text = json.dumps(
+        request.evaluations,
+        indent=2
+    )
+
+    prompt = f"""
+You are a senior technical interviewer.
+
+Generate a final interview performance report.
+
+Topic:
+{request.topic}
+
+Difficulty:
+{request.difficulty}
+
+Project:
+{
+    request.project
+    if request.project
+    else "No project information provided."
+}
+
+Question evaluations:
+{evaluations_text}
+
+Calculate the overall performance from the
+provided scores.
+
+Return ONLY valid JSON:
+
+{{
+    "overall_score": 0,
+    "performance": "Excellent",
+    "summary": "Short overall performance summary",
+    "strengths": [
+        "Strength 1",
+        "Strength 2",
+        "Strength 3"
+    ],
+    "weak_areas": [
+        "Weak area 1",
+        "Weak area 2"
+    ],
+    "recommendations": [
+        "Recommendation 1",
+        "Recommendation 2",
+        "Recommendation 3"
+    ]
+}}
+
+Rules:
+
+- overall_score must be between 0 and 10.
+- performance should be one of:
+  Excellent, Good, Average, Needs Improvement.
+- Return ONLY JSON.
+"""
+
+    try:
+
+        response = client.models.generate_content(
+            model="gemini-3.6-flash",
+            contents=prompt,
+        )
+
+        result = (response.text or "").strip()
+
+        if result.startswith("```json"):
+            result = result[7:]
+
+        elif result.startswith("```"):
+            result = result[3:]
+
+        if result.endswith("```"):
+            result = result[:-3]
+
+        result = result.strip()
+
+        report = json.loads(result)
+
+        return {
+            "success": True,
+            "overall_score": report.get(
+                "overall_score",
+                0
+            ),
+            "performance": report.get(
+                "performance",
+                "Needs Improvement"
+            ),
+            "summary": report.get(
+                "summary",
+                ""
+            ),
+            "strengths": report.get(
+                "strengths",
+                []
+            ),
+            "weak_areas": report.get(
+                "weak_areas",
+                []
+            ),
+            "recommendations": report.get(
+                "recommendations",
+                []
+            ),
+        }
+
+    except Exception as error:
+
+        print(
+            "Final report error:",
+            repr(error)
+        )
+
+        raise HTTPException(
+            status_code=500,
+            detail="Failed to generate final interview report"
         )
