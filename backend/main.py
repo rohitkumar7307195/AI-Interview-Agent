@@ -46,35 +46,19 @@ app = FastAPI(
 
 app.add_middleware(
     CORSMiddleware,
-
     allow_origins=[
-        # Local frontend
         "http://localhost:5183",
-        "http://127.0.0.1:5183",
-
         "http://localhost:5182",
-        "http://127.0.0.1:5182",
-
         "http://localhost:5180",
-        "http://127.0.0.1:5180",
-
         "http://localhost:5173",
-        "http://127.0.0.1:5173",
-
         "http://localhost:5174",
-        "http://127.0.0.1:5174",
 
-        # Vercel frontend
-        # Add your real Vercel URL here later.
-        # Example:
-        # "https://ai-interview-agent.vercel.app",
+        "https://ai-interview-agent-pi-ten.vercel.app",
     ],
-
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
 
 # =========================================================
 # REQUEST MODELS
