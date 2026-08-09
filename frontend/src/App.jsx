@@ -16,6 +16,9 @@ function App() {
   const [evaluating, setEvaluating] = useState(false);
   const [error, setError] = useState("");
 
+  // ================================
+  // GENERATE QUESTION
+  // ================================
   const generateQuestion = async () => {
     setLoading(true);
     setError("");
@@ -44,21 +47,36 @@ function App() {
 
       if (!response.ok) {
         const errorText = await response.text();
-        console.error("Interview API Error:", errorText);
-        throw new Error(`Server error: ${response.status}`);
+
+        console.error(
+          "Interview API Error:",
+          errorText
+        );
+
+        throw new Error(
+          `Server error: ${response.status}`
+        );
       }
 
       const data = await response.json();
 
-      console.log("Question received:", data);
+      console.log(
+        "Question received:",
+        data
+      );
 
       if (!data.question) {
-        throw new Error("Backend did not return a question.");
+        throw new Error(
+          "Backend did not return a question."
+        );
       }
 
       setQuestion(data.question);
     } catch (err) {
-      console.error("GENERATE QUESTION ERROR:", err);
+      console.error(
+        "GENERATE QUESTION ERROR:",
+        err
+      );
 
       setError(
         err.message ||
@@ -69,6 +87,9 @@ function App() {
     }
   };
 
+  // ================================
+  // SUBMIT ANSWER
+  // ================================
   const submitAnswer = async () => {
     if (!question) {
       setError(
@@ -89,7 +110,9 @@ function App() {
     setEvaluation(null);
 
     try {
-      console.log("Sending answer for AI evaluation...");
+      console.log(
+        "Sending answer for AI evaluation..."
+      );
 
       const response = await fetch(
         `${API_BASE_URL}/api/evaluate`,
@@ -111,7 +134,11 @@ function App() {
 
       if (!response.ok) {
         const errorText = await response.text();
-        console.error("Evaluation API Error:", errorText);
+
+        console.error(
+          "Evaluation API Error:",
+          errorText
+        );
 
         throw new Error(
           `Evaluation failed: ${response.status}`
@@ -120,11 +147,17 @@ function App() {
 
       const data = await response.json();
 
-      console.log("AI evaluation received:", data);
+      console.log(
+        "AI evaluation received:",
+        data
+      );
 
       setEvaluation(data);
     } catch (err) {
-      console.error("SUBMIT ANSWER ERROR:", err);
+      console.error(
+        "SUBMIT ANSWER ERROR:",
+        err
+      );
 
       setError(
         err.message ||
@@ -135,6 +168,9 @@ function App() {
     }
   };
 
+  // ================================
+  // NEW QUESTION
+  // ================================
   const startNewQuestion = () => {
     setQuestion("");
     setAnswer("");
@@ -144,6 +180,8 @@ function App() {
 
   return (
     <div className="app">
+
+      {/* HEADER */}
 
       <header className="hero">
 
@@ -170,7 +208,11 @@ function App() {
 
       </header>
 
+      {/* MAIN */}
+
       <main className="container">
+
+        {/* INTERVIEW CONFIGURATION */}
 
         <section className="card">
 
@@ -182,6 +224,8 @@ function App() {
             Configure your interview and generate an
             AI-powered technical question.
           </p>
+
+          {/* TOPIC */}
 
           <div className="form-group">
 
@@ -200,6 +244,8 @@ function App() {
 
           </div>
 
+          {/* DIFFICULTY */}
+
           <div className="form-group">
 
             <label>
@@ -212,6 +258,7 @@ function App() {
                 setDifficulty(event.target.value)
               }
             >
+
               <option value="Beginner">
                 Beginner
               </option>
@@ -227,9 +274,12 @@ function App() {
               <option value="Expert">
                 Expert
               </option>
+
             </select>
 
           </div>
+
+          {/* PROJECT */}
 
           <div className="form-group">
 
@@ -248,25 +298,39 @@ function App() {
 
           </div>
 
+          {/* GENERATE BUTTON */}
+
           <button
             className="primary-button"
             onClick={generateQuestion}
             disabled={loading}
           >
+
             {loading
               ? "Generating Question..."
               : "Generate Interview Question"}
+
           </button>
 
         </section>
 
+        {/* ERROR */}
+
         {error && (
+
           <div className="error-box">
-            <strong>Error:</strong> {error}
+
+            <strong>Error:</strong>{" "}
+            {error}
+
           </div>
+
         )}
 
+        {/* QUESTION */}
+
         {question && (
+
           <section className="card question-card">
 
             <div className="section-label">
@@ -290,9 +354,13 @@ function App() {
             </div>
 
           </section>
+
         )}
 
+        {/* ANSWER */}
+
         {question && (
+
           <section className="card">
 
             <h2>
@@ -318,31 +386,45 @@ function App() {
               className="primary-button"
               onClick={submitAnswer}
               disabled={
-                evaluating || !answer.trim()
+                evaluating ||
+                !answer.trim()
               }
             >
+
               {evaluating
                 ? "AI Evaluating..."
                 : "Submit Answer"}
+
             </button>
 
           </section>
+
         )}
 
+        {/* AI EVALUATION */}
+
         {evaluation && (
+
           <section className="card evaluation-card">
 
             <div className="section-label">
               AI EVALUATION
             </div>
 
+            {/* SCORE */}
+
             {evaluation.score !== undefined && (
+
               <div className="score">
                 Score: {evaluation.score}/10
               </div>
+
             )}
 
+            {/* FEEDBACK */}
+
             {evaluation.feedback && (
+
               <div className="evaluation-section">
 
                 <h3>
@@ -354,10 +436,16 @@ function App() {
                 </p>
 
               </div>
+
             )}
 
-            {Array.isArray(evaluation.strengths) &&
+            {/* STRENGTHS */}
+
+            {Array.isArray(
+              evaluation.strengths
+            ) &&
               evaluation.strengths.length > 0 && (
+
                 <div className="evaluation-section">
 
                   <h3>
@@ -365,20 +453,30 @@ function App() {
                   </h3>
 
                   <ul>
+
                     {evaluation.strengths.map(
                       (strength, index) => (
+
                         <li key={index}>
                           {strength}
                         </li>
+
                       )
                     )}
+
                   </ul>
 
                 </div>
+
               )}
 
-            {Array.isArray(evaluation.improvements) &&
+            {/* IMPROVEMENTS */}
+
+            {Array.isArray(
+              evaluation.improvements
+            ) &&
               evaluation.improvements.length > 0 && (
+
                 <div className="evaluation-section">
 
                   <h3>
@@ -386,17 +484,24 @@ function App() {
                   </h3>
 
                   <ul>
+
                     {evaluation.improvements.map(
                       (improvement, index) => (
+
                         <li key={index}>
                           {improvement}
                         </li>
+
                       )
                     )}
+
                   </ul>
 
                 </div>
+
               )}
+
+            {/* NEW QUESTION */}
 
             <button
               className="secondary-button"
@@ -406,14 +511,19 @@ function App() {
             </button>
 
           </section>
+
         )}
 
       </main>
 
+      {/* FOOTER */}
+
       <footer>
+
         <p>
           AI Interview Agent • React + FastAPI + Gemini
         </p>
+
       </footer>
 
     </div>
